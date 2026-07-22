@@ -1,1269 +1,1350 @@
-# Customer Generation & Segmentation Model
+# Customer Generator
 
-## 1. Overview
-
-The Customer Generation & Segmentation Model is the first processing layer of the Credit Risk Analytics Suite.
-
-Its purpose is to generate a synthetic portfolio of customers with realistic and internally consistent financial and credit characteristics.
-
-The generator is designed to simulate a simplified population of retail banking customers while preserving logical relationships between variables.
-
-The objective is not to create perfectly random customers.
-
-The objective is to create **plausible synthetic customers** whose characteristics can later be evaluated by the Credit Score, Probability of Default, Risk Classification, and Credit Decision modules.
-
-The generation pipeline follows:
-
-```text
-Customer Segment
-        │
-        ▼
-Probabilistic Customer Profile
-        │
-        ▼
-Customer Characteristics
-        │
-        ▼
-Derived Financial Variables
-        │
-        ▼
-Synthetic Customer Portfolio
-```
-
-The resulting portfolio will be represented as a `pandas.DataFrame`.
+## Credit Risk Analytics Suite
 
 ---
 
-# 2. Design Objectives
+## 1. Purpose
 
-The Customer Generation Model must satisfy the following objectives:
+The `customer_generator.py` module is responsible for generating a synthetic portfolio of customers for the **Credit Risk Analytics Suite**.
 
-1. Generate a configurable number of synthetic customers.
-2. Assign customers to predefined probabilistic segments.
-3. Generate realistic customer characteristics based on segment profiles.
-4. Use appropriate probability distributions for different types of variables.
-5. Preserve logical relationships between customer variables.
-6. Prevent obviously unrealistic combinations of attributes.
-7. Provide reproducible results through a configurable random seed.
-8. Keep the generation process reusable across notebooks and Streamlit.
-9. Support future modification of segment distributions.
-10. Prepare the system for the interactive Sandbox planned for version 1.3.
+The purpose of this module is to create realistic fictional customers that can later be evaluated by the credit risk pipeline.
 
-The generator should remain simple enough to understand while applying good programming and data science practices.
+The generated customers will eventually pass through the following process:
+
+```text
+Customer Generation
+        ↓
+Credit Score Calculation
+        ↓
+Probability of Default (PD)
+        ↓
+Risk Classification
+        ↓
+Credit Decision
+        ↓
+Loan Amount
+```
+
+The `customer_generator.py` module is therefore the **starting point of the entire credit risk pipeline**.
+
+It does not calculate Credit Scores.
+
+It does not calculate Probability of Default.
+
+It does not approve or reject loans.
+
+Its only responsibility is to answer:
+
+> "What kind of customers exist in our simulated portfolio?"
+
+Each customer is generated with a combination of:
+
+* Demographic characteristics
+* Employment characteristics
+* Income
+* Historical credit behavior
+* Current credit utilization
+* Credit history
+* Credit product mix
+* Recent credit activity
+
+The module uses **probability distributions** to generate realistic variation between customers.
 
 ---
 
-# 3. Customer Data Model
+# 2. Why Do We Need Synthetic Customers?
 
-The generated customer portfolio will initially contain the following variables.
-
-```text
-Customer_ID
-Customer_Segment
-
-Age
-Annual_Income
-Monthly_Debt_Payment
-Debt_to_Income_Ratio
-
-Years_of_Experience
-Employment_Years
-
-Credit_History_Years
-Number_of_Loans
-Credit_Utilization
-Previous_Defaults
-```
-
-These variables are divided into four conceptual groups.
-
----
-
-## 3.1 Customer Identification
-
-### Customer_ID
-
-A unique identifier assigned to each synthetic customer.
-
-Example:
-
-```text
-C0001
-C0002
-C0003
-```
-
-The identifier has no predictive value and is used only to identify observations within the portfolio.
-
----
-
-### Customer_Segment
-
-The probabilistic segment assigned to the customer.
-
-Initial segments:
-
-```text
-Young Professional
-Established Professional
-Senior Professional
-High Income
-Credit Builder
-```
-
-Customer segments describe the customer's general demographic and financial profile.
-
-They are not equivalent to credit risk categories.
+In a real banking environment, a credit risk model would normally use historical customer data.
 
 For example:
 
 ```text
-Customer Segment
-        │
-        ▼
-Young Professional
-        │
-        ▼
-Credit Score
-        │
-        ▼
-Probability of Default
-        │
-        ▼
-Risk Category
+Customer Data
+      ↓
+Historical Credit Behavior
+      ↓
+Did the customer default?
+      ↓
+Train Statistical / ML Model
+      ↓
+Predict Future Default Risk
 ```
 
-A Young Professional may therefore be classified as Low Risk, Medium Risk, or High Risk depending on their individual characteristics.
+However, this educational project does not use a real bank's private customer database.
 
----
+Therefore, we need to simulate a portfolio.
 
-# 4. Customer Segments
+The generator creates fictional customers whose characteristics behave approximately like customers in a retail banking portfolio.
 
-The initial population will contain five probabilistic customer segments.
-
-The segment weights define the expected composition of the generated portfolio.
-
-The default segment distribution is:
-
-| Customer Segment         | Default Weight |
-| ------------------------ | -------------: |
-| Young Professional       |            30% |
-| Established Professional |            30% |
-| Senior Professional      |            15% |
-| High Income              |            10% |
-| Credit Builder           |            15% |
-
-The weights must satisfy:
-
-$
-\sum_{i=1}^{n} P(Segment_i) = 1
-$
-
-Therefore:
-
-$\
-0.30 + 0.30 + 0.15 + 0.10 + 0.15 = 1.00
-$
-
-The segment weights will initially be defined in the Python code as configurable parameters.
-
-In version 1.0, the default values will be used.
-
-In version 1.3, the same parameters will be controlled interactively through the Streamlit Sandbox.
-
-The Customer Generator itself will not be replaced.
-
----
-
-# 5. Segment Definitions
-
-## 5.1 Young Professional
-
-The Young Professional segment represents customers who are relatively early in their professional and credit lifecycle.
-
-Typical characteristics include:
-
-* Younger age.
-* Lower or moderate income.
-* Fewer years of professional experience.
-* Shorter employment history.
-* Shorter credit history.
-* Fewer loans.
-* Moderate credit utilization.
-* Mostly clean payment history.
-
-Conceptual profile:
-
-| Variable             | Expected Profile |
-| -------------------- | ---------------- |
-| Age                  | Young            |
-| Annual Income        | Low to Moderate  |
-| Years of Experience  | Low              |
-| Employment Years     | Low              |
-| Credit History Years | Short            |
-| Number of Loans      | Low              |
-| Credit Utilization   | Moderate         |
-| Previous Defaults    | Low probability  |
-
-The segment is not inherently high risk.
-
-Its members simply have less financial and credit history.
-
----
-
-## 5.2 Established Professional
-
-The Established Professional segment represents customers with a more developed professional and financial profile.
-
-Typical characteristics include:
-
-* Moderate to mature age.
-* Moderate to high income.
-* Several years of professional experience.
-* Longer employment history.
-* Established credit history.
-* Moderate number of loans.
-* Low to moderate credit utilization.
-* Low probability of previous defaults.
-
-Conceptual profile:
-
-| Variable             | Expected Profile |
-| -------------------- | ---------------- |
-| Age                  | Adult            |
-| Annual Income        | Moderate to High |
-| Years of Experience  | Moderate         |
-| Employment Years     | Moderate         |
-| Credit History Years | Established      |
-| Number of Loans      | Moderate         |
-| Credit Utilization   | Low to Moderate  |
-| Previous Defaults    | Low probability  |
-
----
-
-## 5.3 Senior Professional
-
-The Senior Professional segment represents customers with long professional and credit histories.
-
-Typical characteristics include:
-
-* Mature age.
-* High income.
-* Long professional experience.
-* Long employment history.
-* Long credit history.
-* Multiple credit products.
-* Low to moderate credit utilization.
-* Low probability of previous defaults.
-
-Conceptual profile:
-
-| Variable             | Expected Profile |
-| -------------------- | ---------------- |
-| Age                  | Mature           |
-| Annual Income        | High             |
-| Years of Experience  | High             |
-| Employment Years     | High             |
-| Credit History Years | Long             |
-| Number of Loans      | Moderate to High |
-| Credit Utilization   | Low to Moderate  |
-| Previous Defaults    | Low probability  |
-
----
-
-## 5.4 High Income
-
-The High Income segment represents customers whose primary defining characteristic is high earning capacity.
-
-Unlike the Senior Professional segment, age is not the defining characteristic.
-
-A High Income customer may therefore be relatively young or mature.
-
-Typical characteristics include:
-
-* High annual income.
-* Moderate to high professional experience.
-* Strong financial capacity.
-* Established credit access.
-* Multiple loans or credit products.
-* Generally lower credit utilization.
-* Low probability of previous defaults.
-
-Conceptual profile:
-
-| Variable             | Expected Profile  |
-| -------------------- | ----------------- |
-| Age                  | Broad Adult Range |
-| Annual Income        | Very High         |
-| Years of Experience  | Moderate to High  |
-| Employment Years     | Moderate to High  |
-| Credit History Years | Moderate to Long  |
-| Number of Loans      | Moderate to High  |
-| Credit Utilization   | Low to Moderate   |
-| Previous Defaults    | Low probability   |
-
-The High Income segment may overlap with other demographic profiles.
-
-For example, a customer can be both:
+For example:
 
 ```text
-High Income
+Customer A
+Age: 24
+Income: $45,000
+Late Payments: 2
+Credit Utilization: 68%
+Credit History: 3 years
+Credit Mix: 1
+Recent Inquiries: 4
 ```
 
-and:
+And:
 
 ```text
-Young Professional
+Customer B
+Age: 52
+Income: $95,000
+Late Payments: 0
+Credit Utilization: 24%
+Credit History: 20 years
+Credit Mix: 4
+Recent Inquiries: 0
 ```
 
-The current implementation will assign one primary segment per customer for simplicity.
+These customers are different because the generator introduces controlled randomness.
+
+This randomness is important.
+
+If every customer had exactly the same characteristics, the portfolio would not be useful for studying credit risk.
 
 ---
 
-## 5.5 Credit Builder
+# 3. The Main Idea: Customer Segments
 
-The Credit Builder segment represents customers who are developing or rebuilding their credit profile.
+The generator does not create completely random customers.
 
-Typical characteristics include:
+Instead, it first determines **what type of customer** is being generated.
 
-* Broad adult age range.
-* Low to moderate income.
-* Short or limited credit history.
-* Few loans.
-* Moderate to high credit utilization.
-* Higher probability of previous defaults.
+This is called a **customer segment**.
 
-Conceptual profile:
+The project currently defines five segments:
 
-| Variable             | Expected Profile   |
-| -------------------- | ------------------ |
-| Age                  | Broad Adult Range  |
-| Annual Income        | Low to Moderate    |
-| Years of Experience  | Variable           |
-| Employment Years     | Variable           |
-| Credit History Years | Short              |
-| Number of Loans      | Low                |
-| Credit Utilization   | Moderate to High   |
-| Previous Defaults    | Higher probability |
+| Segment                  | Typical Profile                                                                  |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| Young Professional       | Younger customer starting their career and credit journey                        |
+| Established Professional | More stable career and longer credit history                                     |
+| Senior Professional      | Older customer with extensive financial and credit experience                    |
+| High Income              | Customer with substantially higher income and generally stronger credit behavior |
+| Credit Builder           | Customer actively building or rebuilding their credit profile                    |
 
-This segment is particularly useful for demonstrating how different customer populations can produce different credit risk outcomes.
+The process works like this:
+
+```text
+Generate Customer
+        ↓
+Select Segment
+        ↓
+Generate Age
+        ↓
+Generate Employment Years
+        ↓
+Generate Income
+        ↓
+Generate Credit Behavior
+        ↓
+Generate Credit History
+        ↓
+Generate Credit Mix
+        ↓
+Generate Recent Inquiries
+        ↓
+Return Customer
+```
+
+The segment acts as the customer's **probabilistic profile**.
+
+For example:
+
+A `Young Professional` is more likely to have:
+
+* Lower age
+* Shorter employment history
+* Lower income
+* Shorter credit history
+* Higher credit utilization
+* More recent credit inquiries
+
+A `Senior Professional` is more likely to have:
+
+* Higher age
+* Longer employment history
+* Longer credit history
+* Lower credit utilization
+* Fewer recent inquiries
+
+This makes the generated portfolio more realistic.
 
 ---
 
-# 6. Probability Distributions
+# 4. Object-Oriented Design
 
-The Customer Generator will use different probability distributions depending on the nature of each variable.
+The generator uses a simple form of **Object-Oriented Programming (OOP)**.
 
-The purpose of using probability distributions is to create realistic variation between customers.
+The central class is:
 
-A distribution describes how likely different values are to occur.
-
-For example, instead of saying:
-
-```text
-Every customer earns exactly $50,000.
+```python
+@dataclass
+class CustomerSegment:
 ```
 
-we can define:
+This class represents a **customer segment**, not an individual customer.
 
-```text
-Most customers earn around a typical value,
-while some earn less and others earn significantly more.
+For example:
+
+```python
+YOUNG_PROFESSIONAL = CustomerSegment(
+    name="Young Professional",
+    weight=0.30,
+    age_mean=28,
+    age_std=4,
+    ...
+)
 ```
 
-The generator will use several types of distributions.
+The important distinction is:
+
+```text
+CustomerSegment
+        ↓
+Describes how customers should behave
+
+Customer
+        ↓
+An individual generated from that profile
+```
+
+A useful analogy is a cookie cutter.
+
+The `CustomerSegment` is the cookie cutter.
+
+The individual customers are the cookies.
+
+The cookie cutter defines the general shape, but every cookie can still be slightly different.
+
+---
+
+# 5. The `CustomerSegment` Class
+
+The class contains the parameters required to generate customers.
+
+Its structure is:
+
+```python
+@dataclass
+class CustomerSegment:
+
+    name: str
+    weight: float
+
+    age_mean: float
+    age_std: float
+
+    income_mean: float
+    income_std: float
+
+    late_payment_probabilities: Dict[int, float]
+
+    utilization_alpha: float
+    utilization_beta: float
+
+    credit_history_mean: float
+    credit_history_std: float
+
+    credit_mix_probabilities: Dict[int, float]
+
+    inquiries_lambda: float
+```
+
+The class groups all parameters related to a segment in one object.
+
+This is an example of **encapsulation**.
+
+Instead of having many independent variables:
+
+```python
+young_age_mean = 28
+young_age_std = 4
+
+young_income_mean = 10.5
+young_income_std = 0.35
+
+young_utilization_alpha = 2.5
+young_utilization_beta = 4.0
+```
+
+We group them together:
+
+```python
+YOUNG_PROFESSIONAL.age_mean
+YOUNG_PROFESSIONAL.income_mean
+YOUNG_PROFESSIONAL.utilization_alpha
+```
+
+This makes the code easier to organize and maintain.
+
+---
+
+# 6. What Is a Distribution?
+
+A probability distribution describes how likely different values are.
+
+Imagine generating the age of a Young Professional.
+
+We could simply say:
+
+```text
+Age = 28
+```
+
+But then every Young Professional would be 28 years old.
+
+That would be unrealistic.
+
+Instead, we say:
+
+```text
+Average age = 28
+Variation = 4
+```
+
+Now the generator can produce:
+
+```text
+24
+26
+27
+28
+29
+31
+34
+```
+
+The values are not equally likely.
+
+Values closer to the average are generally more common.
+
+This is the basic idea behind a probability distribution.
 
 ---
 
 # 7. Normal Distribution
 
-The Normal Distribution is useful for variables that tend to cluster around an average value.
+The project uses the Normal Distribution for variables where values tend to cluster around an average.
 
-It is commonly represented as:
-
-$\
-X \sim N(\mu,\sigma)
-$\
-
-where:
-
-* ($\mu$) represents the mean or average.
-* ($\sigma$) represents the standard deviation or spread.
-
-The distribution is often visualized as a bell-shaped curve.
-
-For example:
-
-```text
-             Most Customers
-                  │
-                  ▼
-              ███████
-           █████████████
-        ███████████████████
-     █████████████████████████
-─────────────────────────────────
-       Low       Average      High
-```
-
-The Normal Distribution may be used for variables such as:
-
-* Age.
-* Some employment-related variables.
-* Other approximately symmetric continuous variables.
-
-Values will be constrained when necessary to prevent unrealistic results.
-
-For example:
-
-```text
-Age >= 18
-Age <= 65
-```
-
-This can be implemented using a clipping operation.
-
----
-
-# 8. Lognormal Distribution
-
-Income is often not well represented by a simple Normal Distribution.
-
-A Normal Distribution is symmetric around its average.
-
-Real-world income distributions are usually asymmetric.
-
-There are many people around low or middle income levels and fewer people with extremely high incomes.
-
-This creates a right-skewed distribution.
-
-Conceptually:
-
-```text
-Customers
-   │
-   │ ███████████
-   │ ███████████████
-   │ █████████████████
-   │ ███████████████████
-   │ █████████████
-   │ ███████
-   │ ███
-   └──────────────────────────────► Income
-        Low       Middle     High
-```
-
-A Lognormal Distribution is useful for modeling this behavior.
-
-Conceptually:
-
-$\
-X \sim LogNormal(\mu,\sigma)
-$
-
-The parameters will be configured separately for each customer segment.
-
-This allows the model to generate:
-
-* Lower income populations.
-* Middle income populations.
-* High income populations.
-
-without manually defining every possible income level.
-
----
-
-# 9. Beta Distribution
-
-The Beta Distribution is useful for variables that naturally exist between two boundaries.
-
-The primary use in this project will be:
-
-```text
-Credit_Utilization
-```
-
-Credit utilization can be represented as a percentage:
-
-$
-0 \leq Utilization \leq 100
-$
-
-The Beta Distribution naturally produces values between 0 and 1.
-
-The generated value can therefore be transformed into a percentage:
-
-$
-Utilization = X \times 100
-$
-
-Different Beta Distribution parameters can create different shapes.
-
-For example:
-
-```text
-Low Utilization Profile
-        ↓
-Most customers near lower values
-
-High Utilization Profile
-        ↓
-Most customers near higher values
-```
-
-This makes the Beta Distribution useful for creating segment-specific utilization profiles.
-
----
-
-# 10. Poisson Distribution
-
-The Poisson Distribution is useful for modeling the number of times an event occurs.
-
-It may be used for variables such as:
-
-* Number of Loans.
-* Previous Defaults.
-
-The distribution is represented conceptually as:
-
-$
-X \sim Poisson(\lambda)
-$
-
-where (\lambda) represents the expected average number of events.
-
-For example:
-
-```text
-Number of Previous Defaults
-
-0 defaults → Most common
-1 default  → Less common
-2 defaults → Less common
-3 defaults → Rare
-```
-
-The generated values will be constrained where necessary to maintain realistic ranges.
-
----
-
-# 11. Discrete Probability Distributions
-
-Some variables will be generated using explicitly defined probabilities.
-
-For example:
-
-```text
-Previous Defaults
-
-0 → 75%
-1 → 15%
-2 → 7%
-3 → 3%
-```
-
-This can be implemented using a categorical or discrete probability selection mechanism.
-
-The advantage of this approach is that the probability of each outcome can be explicitly controlled.
-
-This is particularly useful for variables where the desired behavior is highly skewed.
-
----
-
-# 12. Variable Generation Strategy
-
-The Customer Generator will not generate all variables independently.
-
-Instead, variables will be generated in a logical sequence.
-
-The conceptual workflow is:
-
-```text
-1. Assign Customer Segment
-          │
-          ▼
-2. Generate Age
-          │
-          ▼
-3. Generate Years of Experience
-          │
-          ▼
-4. Generate Employment Years
-          │
-          ▼
-5. Generate Annual Income
-          │
-          ▼
-6. Generate Credit History Years
-          │
-          ▼
-7. Generate Number of Loans
-          │
-          ▼
-8. Generate Credit Utilization
-          │
-          ▼
-9. Generate Previous Defaults
-          │
-          ▼
-10. Generate Monthly Debt Payment
-          │
-          ▼
-11. Calculate Debt-to-Income Ratio
-```
-
-This approach helps maintain logical consistency.
-
----
-
-# 13. Variable Relationships
-
-The generator will use relationships between variables where appropriate.
-
-The objective is to avoid treating every variable as independent.
-
----
-
-## 13.1 Age and Experience
-
-Professional experience should generally increase with age.
-
-The generator should respect the conceptual relationship:
-
-$
-YearsOfExperience \leq Age - 18
-$
-
-This assumes that professional experience begins no earlier than approximately age 18.
-
-For example:
-
-```text
-Age = 22
-Maximum Experience ≈ 4 years
-```
-
-A customer should not be generated with:
-
-```text
-Age = 22
-Years_of_Experience = 30
-```
-
----
-
-## 13.2 Age and Employment
-
-Employment years should also be constrained by age.
-
-Conceptually:
-
-$
-EmploymentYears \leq YearsOfExperience
-$
-
-This prevents situations such as:
-
-```text
-Years of Experience = 5
-Employment Years = 15
-```
-
----
-
-## 13.3 Age and Credit History
-
-Credit history should generally be related to age.
-
-A customer cannot have a credit history that significantly exceeds their plausible financial lifecycle.
-
-Therefore:
-
-$
-CreditHistoryYears \leq Age - 18
-$
-
-The exact implementation may use additional constraints to reflect realistic differences between the beginning of employment and the beginning of credit activity.
-
----
-
-## 13.4 Income and Debt Payments
-
-Annual income represents gross yearly income.
-
-Monthly debt payment represents the customer's recurring monthly debt obligations.
-
-The two variables will be related through the Debt-to-Income Ratio.
-
-Monthly income is:
-
-$
-MonthlyIncome =
-\frac{AnnualIncome}{12}
-$
-
-Debt-to-Income Ratio is:
-
-$
-DTI =
-\frac{MonthlyDebtPayment}
-{MonthlyIncome}
-$
-
-or equivalently:
-
-$
-DTI =
-\frac{MonthlyDebtPayment \times 12}
-{AnnualIncome}
-$
-
-The ratio may be stored as a decimal or percentage depending on the implementation.
-
-For example:
-
-```text
-Annual Income = $60,000
-Monthly Income = $5,000
-Monthly Debt Payment = $1,000
-
-DTI = 1,000 / 5,000
-DTI = 0.20
-DTI = 20%
-```
-
-The DTI will be calculated rather than independently generated.
-
-This makes it a **derived variable**.
-
----
-
-## 13.5 Credit History and Number of Loans
-
-Customers with longer credit histories may have had more opportunities to acquire credit products.
-
-Therefore, the Number of Loans may be positively related to Credit History Years.
-
-However, this relationship should not be deterministic.
-
-Two customers with the same credit history length may have very different numbers of loans.
-
-The generator will therefore use probabilistic variation.
-
----
-
-## 13.6 Credit Utilization and Previous Defaults
-
-Credit utilization and previous defaults are both indicators of credit behavior.
-
-The initial generator may allow these variables to vary independently within segment-specific distributions.
-
-The relationship between them will primarily emerge later through:
-
-* Credit Score.
-* Probability of Default.
-* Credit Decision.
-
-This keeps the generation model simple and prevents over-engineering the synthetic data generation process.
-
----
-
-# 14. Derived Variables
-
-Some variables should not be generated directly.
-
-Instead, they should be calculated from other variables.
-
-The primary derived variable is:
-
-```text
-Debt_to_Income_Ratio
-```
-
-The relationship is:
+The formula is commonly represented as:
 
 [
-DTI =
-\frac{MonthlyDebtPayment}
-{AnnualIncome / 12}
+X \sim N(\mu, \sigma^2)
 ]
 
-The process is therefore:
+Where:
 
-```text
-Annual Income
-      │
-      ▼
-Monthly Income
-      │
-      │
-Monthly Debt Payment
-      │
-      ▼
-Debt-to-Income Ratio
-```
+* (\mu) = mean
+* (\sigma) = standard deviation
 
-This approach improves internal consistency and demonstrates an important Data Analytics concept:
-
-> A variable can be derived from underlying business information instead of being independently generated.
-
----
-
-# 15. CustomerSegment Class
-
-The `CustomerSegment` class represents the probabilistic profile of a customer segment.
-
-The class is responsible for storing the parameters that define how a segment behaves.
-
-Conceptually:
+In Python:
 
 ```python
-class CustomerSegment:
-    ...
-```
-
-The class may contain attributes representing:
-
-* Segment name.
-* Segment weight.
-* Age parameters.
-* Income parameters.
-* Experience parameters.
-* Employment parameters.
-* Credit history parameters.
-* Loan parameters.
-* Utilization parameters.
-* Previous default parameters.
-
-The class may also provide methods responsible for generating segment-specific values.
-
-Examples:
-
-```text
-generate_age()
-generate_income()
-generate_experience()
-generate_employment_years()
-generate_credit_history()
-generate_number_of_loans()
-generate_credit_utilization()
-generate_previous_defaults()
-```
-
-The class encapsulates the probabilistic behavior of a customer segment.
-
-This means that the logic defining how a segment generates its values is grouped inside the segment object rather than scattered throughout the project.
-
----
-
-# 16. CustomerGenerator Class
-
-The `CustomerGenerator` class coordinates the generation of the complete customer portfolio.
-
-Conceptually:
-
-```python
-class CustomerGenerator:
-    ...
-```
-
-The generator is responsible for:
-
-* Number of customers.
-* Random seed.
-* Available customer segments.
-* Segment selection.
-* Customer generation.
-* DataFrame construction.
-* Derived variable calculation.
-
-The generator will expose a main method such as:
-
-```python
-generate()
-```
-
-The conceptual flow is:
-
-```text
-CustomerGenerator
-        │
-        ├── Select Customer Segment
-        │
-        ▼
-CustomerSegment
-        │
-        ├── Generate Customer Variables
-        │
-        ▼
-Apply Business Constraints
-        │
-        ▼
-Calculate Derived Variables
-        │
-        ▼
-Build DataFrame
-```
-
-The generator will return a `pandas.DataFrame`.
-
----
-
-# 17. Object-Oriented Design
-
-The project will use Object-Oriented Programming where it improves organization and reusability.
-
-The two primary classes are:
-
-```text
-CustomerSegment
-CustomerGenerator
-```
-
-The relationship can be represented as:
-
-```text
-CustomerGenerator
-        │
-        ├── CustomerSegment
-        ├── CustomerSegment
-        ├── CustomerSegment
-        ├── CustomerSegment
-        └── CustomerSegment
-```
-
-This is an example of **composition**.
-
-The `CustomerGenerator` uses multiple `CustomerSegment` objects to generate the final portfolio.
-
-Inheritance will not be introduced unless it provides a clear benefit.
-
-The project is intended to demonstrate useful OOP concepts rather than maximize the number of classes or abstractions.
-
----
-
-# 18. Encapsulation
-
-Encapsulation means grouping data and the logic that operates on that data within an appropriate object.
-
-In this project, the parameters and generation behavior of a customer segment will be grouped inside `CustomerSegment`.
-
-Conceptually:
-
-```text
-CustomerSegment
-│
-├── Parameters
-│
-└── Generation Methods
-```
-
-This allows the rest of the project to interact with a segment without needing to know every internal detail of how its values are generated.
-
-For example:
-
-```python
-segment.generate_income()
-```
-
-The caller does not need to manually implement the underlying probability distribution.
-
-This improves:
-
-* Reusability.
-* Readability.
-* Maintainability.
-* Separation of responsibilities.
-
----
-
-# 19. Random Seed
-
-The Customer Generator will support a configurable random seed.
-
-The default value will be:
-
-```python
-DEFAULT_RANDOM_SEED = 42
-```
-
-The purpose of the random seed is reproducibility.
-
-Without a fixed seed:
-
-```text
-Run 1 → Portfolio A
-Run 2 → Portfolio B
-Run 3 → Portfolio C
-```
-
-With the same seed:
-
-```text
-Run 1 → Portfolio A
-Run 2 → Portfolio A
-Run 3 → Portfolio A
-```
-
-This is useful for:
-
-* Debugging.
-* Testing.
-* Educational demonstrations.
-* Reproducing results.
-* Comparing different modeling approaches.
-
-The seed will be configurable so that users can generate different populations when desired.
-
----
-
-# 20. Number of Customers
-
-The generator will use:
-
-```python
-DEFAULT_N_CUSTOMERS = 1000
-```
-
-The number of customers will be configurable.
-
-Conceptually:
-
-```python
-CustomerGenerator(
-    n_customers=1000
+rng.normal(
+    loc=segment.age_mean,
+    scale=segment.age_std
 )
 ```
 
-The default value of 1,000 customers provides enough observations for portfolio-level analysis while remaining computationally lightweight.
+For example:
 
-In version 1.3, the same parameter will be exposed through the Streamlit Sandbox.
+```python
+age_mean = 28
+age_std = 4
+```
+
+This means:
+
+```text
+Average age ≈ 28
+Typical variation ≈ 4 years
+```
+
+The generator might produce:
+
+```text
+25
+27
+28
+29
+32
+```
+
+This does not mean every value is equally probable.
+
+The distribution is concentrated around the mean.
+
+The Normal Distribution is used for:
+
+* Age
+* Income parameters
+* Credit history
+
+---
+
+# 8. Log-Normal Distribution for Income
+
+Income is generated using a Log-Normal Distribution.
+
+```python
+rng.lognormal(
+    mean=segment.income_mean,
+    sigma=segment.income_std
+)
+```
+
+This is useful because income is naturally:
+
+* Positive
+* Often right-skewed
+* More likely to have a small number of very high-income individuals
+
+A Normal Distribution could theoretically generate negative income values.
 
 For example:
 
 ```text
-Number of Customers
-        │
-        ▼
-[ Slider ]
-        │
-        ▼
-CustomerGenerator
+$50,000
+$60,000
+$70,000
+-$10,000
 ```
 
-The Sandbox will modify the input parameter rather than introducing a new generation mechanism.
+A negative annual income would not make sense for the simplified model.
 
----
+The Log-Normal Distribution avoids this problem because its generated values are positive.
 
-# 21. Version 1.0 Behavior
-
-In version 1.0, the Customer Generator will use predefined segment profiles and default probability parameters.
-
-The user will be able to:
-
-1. Generate the customer portfolio.
-2. View the resulting DataFrame.
-3. Execute the downstream credit risk pipeline.
-
-The default generation process will use:
+The important conceptual difference is:
 
 ```text
-Customers
-    = 1,000
+Normal Distribution
 
-Random Seed
-    = 42
-
-Segment Distribution
-    = Predefined Default Weights
+       /\ 
+      /  \
+_____/    \_____
 ```
 
-The resulting dataset will be passed to the Credit Score Calculator.
+Versus a right-skewed income distribution:
+
+```text
+       /\
+      /  \
+_____/    \___________
+                  ↑
+            Few high incomes
+```
+
+This makes the Log-Normal Distribution a reasonable educational choice for income.
 
 ---
 
-# 22. Version 1.3 Sandbox Preparation
+# 9. Employment Years
 
-The Customer Generation Model is intentionally designed to support future interactive experimentation.
+Employment years are not generated independently of age.
 
-In version 1.3, users will be able to modify:
+This is an important example of **business logic constraints**.
 
-* Number of customers.
-* Customer segment weights.
-* Population composition.
-* Selected probabilistic generation parameters.
+The first step is:
+
+```python
+max_employment_years = max(age - 18, 1)
+```
+
+The assumption is that formal employment begins at approximately age 18.
+
+Therefore:
+
+```text
+Age = 25
+
+25 - 18 = 7
+```
+
+The customer can have at most approximately:
+
+```text
+7 years of employment
+```
+
+The generator then selects a random value between:
+
+```text
+1 and 7
+```
+
+For example:
+
+```text
+Age = 25
+Employment Years = 3
+```
+
+Or:
+
+```text
+Age = 25
+Employment Years = 6
+```
+
+But never:
+
+```text
+Age = 25
+Employment Years = 30
+```
+
+This is an example of a **logical constraint**.
+
+Probability generates the variability.
+
+Business rules prevent impossible or unrealistic combinations.
+
+This distinction is very important:
+
+```text
+Probability
+    ↓
+Creates realistic variation
+
+Business Rules
+    ↓
+Prevent unrealistic combinations
+```
+
+Together they produce more realistic synthetic data.
+
+---
+
+# 10. Categorical Distribution: Late Payments
+
+Late payments are generated using a categorical probability distribution.
+
+For example:
+
+```python
+late_payment_probabilities = {
+    0: 0.40,
+    1: 0.27,
+    2: 0.15,
+    3: 0.09,
+    4: 0.06,
+    5: 0.03,
+}
+```
+
+This means:
+
+```text
+0 late payments → 40% probability
+1 late payment   → 27% probability
+2 late payments  → 15% probability
+3 late payments  → 9% probability
+4 late payments  → 6% probability
+5 late payments  → 3% probability
+```
+
+The generator uses:
+
+```python
+rng.choice(
+    late_payment_values,
+    p=late_payment_probabilities
+)
+```
+
+Conceptually, this is similar to a weighted lottery.
+
+The possible results are:
+
+```text
+[0, 1, 2, 3, 4, 5]
+```
+
+But the probability of selecting each value is different.
+
+The important improvement in this project is that the probabilities are **segment-specific**.
 
 For example:
 
 ```text
 Young Professional
-[██████████████████] 60%
-
-Established Professional
-[██████] 20%
+        ↓
+Higher probability of late payments
 
 Senior Professional
-[███] 10%
+        ↓
+Lower probability of late payments
 
 High Income
-[█] 5%
-
-Credit Builder
-[█] 5%
-```
-
-The modified parameters will be passed to the existing `CustomerGenerator`.
-
-The generator will therefore remain the central source of truth for customer population generation.
-
-The Streamlit application will control parameters.
-
-The Python module will perform the generation.
-
-This maintains a clean separation between:
-
-```text
-User Interface
-        │
-        ▼
-Parameters
-        │
-        ▼
-Business Logic
-        │
-        ▼
-Generated Data
-```
-
----
-
-# 23. Expected Output
-
-The Customer Generator will return a DataFrame with the following columns:
-
-```text
-Customer_ID
-Customer_Segment
-Age
-Annual_Income
-Monthly_Debt_Payment
-Debt_to_Income_Ratio
-Years_of_Experience
-Employment_Years
-Credit_History_Years
-Number_of_Loans
-Credit_Utilization
-Previous_Defaults
-```
-
-At this stage, the dataset will not yet contain:
-
-```text
-Raw_Credit_Score
-Credit_Score
-Probability_of_Default
-Risk_Category
-Decision
-Decision_Reason
-Loan_Amount
-```
-
-These fields will be added by the subsequent modules.
-
-The resulting data flow will therefore be:
-
-```text
-Customer Generator
-        │
-        ▼
-Customer Profile DataFrame
-        │
-        ▼
-Credit Score Calculator
-        │
-        ▼
-PD Model
-        │
-        ▼
-Risk & Credit Decision Engine
-```
-
----
-
-# 24. Design Principles
-
-The Customer Generation Model follows the following principles.
-
-### Realism over Complexity
-
-The generator should produce plausible customers without becoming unnecessarily complex.
-
-### Probability over Determinism
-
-Customers should vary naturally within each segment.
-
-### Relationships over Independence
-
-Variables should be logically related where appropriate.
-
-### Derived Variables over Redundant Generation
-
-Variables that can be calculated from underlying information should be derived.
-
-### Reusability
-
-The same generator should work in notebooks and Streamlit.
-
-### Explainability
-
-The logic behind the generation process should be understandable.
-
-### Extensibility
-
-The design should allow parameters to be modified in version 1.3.
-
----
-
-# 25. Final Architecture
-
-The Customer Generation Layer can be summarized as:
-
-```text
-                    Customer Generator
-                           │
-             ┌─────────────┴─────────────┐
-             │                           │
-      Segment Weights             Random Seed
-             │                           │
-             └─────────────┬─────────────┘
-                           │
-                           ▼
-                  Customer Segmentation
-                           │
-                           ▼
-                 CustomerSegment Objects
-                           │
-                           ▼
-                Probabilistic Generation
-                           │
-                           ▼
-                  Business Constraints
-                           │
-                           ▼
-                 Derived Variables
-                           │
-                           ▼
-                  Customer DataFrame
-```
-
-The output of this layer becomes the input of the Credit Score Calculator.
-
-The Customer Generation Layer therefore represents the first stage of the complete Credit Risk Analytics pipeline.
-
-```text
-Customer Generation
         ↓
-Credit Scoring
+Lower probability of late payments
+```
+
+This means the model does not assume that every customer behaves identically.
+
+However, the distributions do not imply that every High Income customer is financially responsible.
+
+They only define probabilities.
+
+Therefore, a High Income customer can still have late payments.
+
+The difference is that the event is less probable.
+
+This is an important concept in probabilistic modeling:
+
+> A probability distribution describes likelihood, not certainty.
+
+---
+
+# 11. Beta Distribution: Credit Utilization
+
+Credit utilization represents how much of the customer's available credit is currently being used.
+
+For example:
+
+```text
+Credit Limit = $10,000
+Current Balance = $3,000
+
+Utilization = 30%
+```
+
+The generator uses a Beta Distribution:
+
+```python
+rng.beta(
+    a=segment.utilization_alpha,
+    b=segment.utilization_beta
+)
+```
+
+The Beta Distribution always generates values between:
+
+[
+0 \leq X \leq 1
+]
+
+Therefore:
+
+```text
+0.00 = 0%
+0.25 = 25%
+0.50 = 50%
+0.80 = 80%
+1.00 = 100%
+```
+
+The project multiplies the result by 100:
+
+```python
+utilization * 100
+```
+
+So:
+
+```text
+0.35 → 35%
+```
+
+The parameters:
+
+```python
+alpha
+beta
+```
+
+control the shape of the distribution.
+
+For example:
+
+```text
+alpha = 2.5
+beta = 4.0
+```
+
+will produce a different utilization profile from:
+
+```text
+alpha = 4.0
+beta = 8.0
+```
+
+This allows different customer segments to have different credit utilization behaviors.
+
+For example:
+
+```text
+Credit Builder
+    ↓
+Higher typical utilization
+
+High Income
+    ↓
+Lower typical utilization
+```
+
+Again, this does not guarantee individual behavior.
+
+It only changes the probabilities.
+
+---
+
+# 12. Credit History
+
+Credit history represents approximately how many years a customer has had active credit experience.
+
+The generator uses a Normal Distribution:
+
+```python
+generated_history = rng.normal(
+    loc=segment.credit_history_mean,
+    scale=segment.credit_history_std
+)
+```
+
+However, this value cannot simply be accepted.
+
+Consider:
+
+```text
+Age = 25
+Generated Credit History = 15 years
+```
+
+That would imply the customer started using credit around:
+
+```text
+25 - 15 = 10 years old
+```
+
+This is unrealistic for our simplified model.
+
+Therefore, we calculate:
+
+```python
+max_credit_history = max(age - 18, 1)
+```
+
+For:
+
+```text
+Age = 25
+```
+
+We get:
+
+```text
+25 - 18 = 7
+```
+
+The maximum possible credit history becomes:
+
+```text
+7 years
+```
+
+Then:
+
+```python
+credit_history = min(
+    round(generated_history),
+    max_credit_history
+)
+```
+
+This means:
+
+```text
+Generated history = 12
+Maximum realistic history = 7
+
+Final history = 7
+```
+
+Or:
+
+```text
+Generated history = 4
+Maximum realistic history = 7
+
+Final history = 4
+```
+
+The `min()` function chooses the smaller value.
+
+The final process is therefore:
+
+```text
+Probability Distribution
+        ↓
+Generate Estimated History
+        ↓
+Apply Age Constraint
+        ↓
+Final Credit History
+```
+
+This is another example of combining:
+
+```text
+Statistical Modeling
++
+Business Logic
+```
+
+---
+
+# 13. Credit Mix
+
+Credit Mix represents the number of active credit products.
+
+The project uses a categorical distribution.
+
+For example:
+
+```python
+credit_mix_probabilities = {
+    1: 0.35,
+    2: 0.40,
+    3: 0.20,
+    4: 0.05,
+}
+```
+
+The possible values are:
+
+```text
+1 credit product
+2 credit products
+3 credit products
+4 credit products
+```
+
+The probabilities differ according to the customer segment.
+
+A Credit Builder might be more likely to have:
+
+```text
+1 or 2 products
+```
+
+While a Senior Professional might be more likely to have:
+
+```text
+3 or 4 products
+```
+
+This variable later contributes to the customer's Credit Score and Probability of Default.
+
+---
+
+# 14. Recent Credit Inquiries
+
+Recent inquiries represent how many recent credit applications or credit checks a customer has made.
+
+The project uses a Poisson Distribution:
+
+```python
+rng.poisson(
+    lam=segment.inquiries_lambda
+)
+```
+
+The parameter:
+
+[
+\lambda
+]
+
+represents the expected average number of events.
+
+For example:
+
+```text
+lambda = 0.7
+```
+
+means relatively few recent inquiries are expected.
+
+While:
+
+```text
+lambda = 1.8
+```
+
+represents a customer profile with more frequent recent credit activity.
+
+This is useful because credit inquiries are count data.
+
+The variable is not:
+
+```text
+0.72 inquiries
+```
+
+It is:
+
+```text
+0 inquiries
+1 inquiry
+2 inquiries
+3 inquiries
+...
+```
+
+The Poisson Distribution is therefore a natural educational choice for modeling event counts.
+
+---
+
+# 15. Segment Selection
+
+Before generating a customer, the system must determine which segment they belong to.
+
+The process is:
+
+```text
+Customer
+    ↓
+Select Segment
+    ↓
+Use Segment Parameters
+    ↓
+Generate Customer Attributes
+```
+
+For example:
+
+```text
+Customer C00001
+        ↓
+Young Professional
+        ↓
+Age parameters from Young Professional
+Income parameters from Young Professional
+Credit behavior from Young Professional
+```
+
+Another customer could be:
+
+```text
+Customer C00002
+        ↓
+High Income
+        ↓
+Age parameters from High Income
+Income parameters from High Income
+Credit behavior from High Income
+```
+
+The segment selection itself is probabilistic.
+
+The default portfolio uses:
+
+```python
+DEFAULT_SEGMENT_WEIGHTS = {
+    "Young Professional": 0.30,
+    "Established Professional": 0.30,
+    "Senior Professional": 0.15,
+    "High Income": 0.10,
+    "Credit Builder": 0.15,
+}
+```
+
+Conceptually:
+
+```text
+30% Young Professionals
+30% Established Professionals
+15% Senior Professionals
+10% High Income
+15% Credit Builders
+```
+
+For a portfolio of 1,000 customers, we would expect approximately:
+
+```text
+300 Young Professionals
+300 Established Professionals
+150 Senior Professionals
+100 High Income
+150 Credit Builders
+```
+
+However, because the process is probabilistic, the exact result may vary.
+
+For example:
+
+```text
+298 Young Professionals
+304 Established Professionals
+147 Senior Professionals
+103 High Income
+148 Credit Builders
+```
+
+This is expected.
+
+The probabilities define the expected distribution, not an exact quota.
+
+---
+
+# 16. Random Number Generator
+
+The project uses:
+
+```python
+rng = np.random.default_rng(random_state)
+```
+
+This creates a NumPy random number generator.
+
+The `random_state` parameter controls reproducibility.
+
+For example:
+
+```python
+generate_customers(
+    n_customers=1000,
+    random_state=42
+)
+```
+
+If the same seed is used again:
+
+```python
+generate_customers(
+    n_customers=1000,
+    random_state=42
+)
+```
+
+the same synthetic portfolio will be generated.
+
+This is important for:
+
+* Debugging
+* Testing
+* Comparing model versions
+* Reproducing experiments
+* Educational demonstrations
+
+The random seed does not eliminate randomness.
+
+Instead, it makes the randomness **reproducible**.
+
+---
+
+# 17. The `generate_customer()` Function
+
+The `generate_customer()` function is responsible for generating one customer.
+
+The process is sequential.
+
+```text
+1. Select Segment
+        ↓
+2. Generate Age
+        ↓
+3. Generate Employment Years
+        ↓
+4. Generate Income
+        ↓
+5. Generate Late Payments
+        ↓
+6. Generate Credit Utilization
+        ↓
+7. Generate Credit History
+        ↓
+8. Generate Credit Mix
+        ↓
+9. Generate Recent Inquiries
+        ↓
+10. Return Customer
+```
+
+The function returns a Python dictionary:
+
+```python
+return {
+    "Customer_ID": customer_id,
+    "Segment": segment.name,
+    "Age": age,
+    "Employment_Years": employment_years,
+    "Annual_Income": annual_income,
+    "Late_Payments": late_payments,
+    "Credit_Utilization": credit_utilization,
+    "Credit_History_Years": credit_history_years,
+    "Credit_Mix": credit_mix,
+    "Recent_Inquiries": recent_inquiries
+}
+```
+
+This dictionary represents one row of the final dataset.
+
+For example:
+
+```text
+Customer_ID: C00001
+Segment: Young Professional
+Age: 27
+Employment_Years: 5
+Annual_Income: $42,000
+Late_Payments: 1
+Credit_Utilization: 54%
+Credit_History_Years: 5
+Credit_Mix: 2
+Recent_Inquiries: 1
+```
+
+---
+
+# 18. The `generate_customers()` Function
+
+The `generate_customers()` function is the main orchestrator of the module.
+
+An **orchestrator** is a function responsible for coordinating several smaller operations.
+
+It does not calculate every attribute itself.
+
+Instead, it coordinates the process:
+
+```text
+generate_customers()
+        │
+        ├── generate_customer()
+        │       ├── generate_age()
+        │       ├── generate_income()
+        │       ├── generate_employment_years()
+        │       ├── generate_late_payments()
+        │       ├── generate_credit_utilization()
+        │       ├── generate_credit_history()
+        │       ├── generate_credit_mix()
+        │       └── generate_recent_inquiries()
+        │
+        └── pandas.DataFrame()
+```
+
+The function repeats this process:
+
+```python
+for i in range(1, n_customers + 1):
+```
+
+Each customer receives a unique identifier:
+
+```python
+C00001
+C00002
+C00003
+...
+```
+
+The generated dictionaries are stored in a list.
+
+Finally:
+
+```python
+pd.DataFrame(customers)
+```
+
+converts the list of dictionaries into a DataFrame.
+
+The result is the customer portfolio used by the rest of the application.
+
+---
+
+# 19. Module Architecture
+
+The module follows a simple layered structure.
+
+```text
+CustomerSegment
+        ↓
+Segment Configuration
+        ↓
+Attribute Generators
+        ↓
+generate_customer()
+        ↓
+generate_customers()
+        ↓
+Pandas DataFrame
+```
+
+This design separates responsibilities.
+
+For example:
+
+```python
+generate_age()
+```
+
+only generates age.
+
+```python
+generate_income()
+```
+
+only generates income.
+
+```python
+generate_credit_history()
+```
+
+only generates credit history.
+
+This is an example of the **Single Responsibility Principle** at a simple educational level.
+
+Each function has one main responsibility.
+
+This makes the code easier to:
+
+* Read
+* Understand
+* Test
+* Modify
+* Reuse
+
+---
+
+# 20. Why We Use Functions Instead of One Large Function
+
+We could theoretically write everything inside:
+
+```python
+generate_customers()
+```
+
+For example:
+
+```python
+def generate_customers():
+
+    # generate age
+    # generate income
+    # generate employment
+    # generate late payments
+    # generate utilization
+    # ...
+```
+
+However, this would quickly become difficult to maintain.
+
+Instead, we decompose the problem:
+
+```text
+generate_age()
+generate_income()
+generate_employment_years()
+generate_late_payments()
+generate_credit_utilization()
+generate_credit_history()
+generate_credit_mix()
+generate_recent_inquiries()
+```
+
+Each function represents one piece of business logic.
+
+This is called **modularity**.
+
+The result is a system that is easier to understand and extend.
+
+---
+
+# 21. Relationship Between Probability and Business Rules
+
+One of the most important concepts in this module is the combination of:
+
+```text
+Probability
++
+Business Logic
+```
+
+Probability creates variation.
+
+Business logic keeps the data realistic.
+
+For example:
+
+```text
+Age
+↓
+Normal Distribution
+↓
+Age = 25
+```
+
+Then:
+
+```text
+Age = 25
+↓
+Employment Constraint
+↓
+Employment Years ≤ 7
+```
+
+Another example:
+
+```text
+Credit History
+↓
+Normal Distribution
+↓
+Generated History = 15 years
+```
+
+Then:
+
+```text
+Age = 25
+↓
+Maximum History = 7 years
+↓
+Final History = 7 years
+```
+
+The generator therefore follows the principle:
+
+> Generate probabilistically, then validate against business reality.
+
+This principle will become increasingly important when building the later credit risk modules.
+
+---
+
+# 22. Current Customer Data Model
+
+The current generator produces the following variables:
+
+| Variable               | Description                      | Purpose                            |
+| ---------------------- | -------------------------------- | ---------------------------------- |
+| `Customer_ID`          | Unique customer identifier       | Customer tracking                  |
+| `Segment`              | Customer segment                 | Portfolio segmentation             |
+| `Age`                  | Customer age                     | Demographic and lending context    |
+| `Employment_Years`     | Years of employment              | Financial stability proxy          |
+| `Annual_Income`        | Annual income in USD             | Affordability and lending capacity |
+| `Late_Payments`        | Historical late payments         | Payment behavior                   |
+| `Credit_Utilization`   | Percentage of credit used        | Credit stress indicator            |
+| `Credit_History_Years` | Years of credit history          | Credit maturity                    |
+| `Credit_Mix`           | Number of active credit products | Credit diversification             |
+| `Recent_Inquiries`     | Recent credit inquiries          | Recent credit-seeking behavior     |
+
+These variables are intentionally limited.
+
+The objective is not to simulate an entire bank database.
+
+The objective is to create a compact but realistic dataset that is sufficient for:
+
+```text
+Credit Score
         ↓
 Probability of Default
         ↓
@@ -1272,8 +1353,256 @@ Risk Classification
 Credit Decision
         ↓
 Loan Amount
-        ↓
-Portfolio Analytics
 ```
+
+This keeps the project manageable while still demonstrating financial and risk analytics concepts.
+
+---
+
+# 23. Future Sandbox Integration
+
+The current version uses predefined segment configurations.
+
+For example:
+
+```python
+YOUNG_PROFESSIONAL
+ESTABLISHED_PROFESSIONAL
+SENIOR_PROFESSIONAL
+HIGH_INCOME
+CREDIT_BUILDER
+```
+
+The future sandbox will allow the user to modify the portfolio.
+
+For example:
+
+```text
+Young Professional
+[=========---------] 40%
+
+Established Professional
+[======------------] 25%
+
+Senior Professional
+[====--------------] 15%
+
+High Income
+[==----------------] 5%
+
+Credit Builder
+[======------------] 15%
+```
+
+The user could therefore simulate different portfolio compositions.
+
+For example:
+
+```text
+Scenario A
+More Young Professionals
+
+Scenario B
+More High Income Customers
+
+Scenario C
+More Credit Builders
+
+Scenario D
+More Senior Professionals
+```
+
+The same customer generation engine will then generate the portfolio under the new configuration.
+
+This is one of the reasons the segment configuration is separated from the generation logic.
+
+The architecture is designed so that:
+
+```text
+Segment Parameters
+        ↓
+Can be modified
+        ↓
+Without rewriting
+the generation functions
+```
+
+This will be particularly important in **v1.3**, when the Streamlit Sandbox is implemented.
+
+---
+
+# 24. Complete Conceptual Flow
+
+The entire customer generation process can be summarized as:
+
+```text
+                 CUSTOMER GENERATOR
+                         │
+                         ▼
+              Select Customer Segment
+                         │
+          ┌──────────────┴──────────────┐
+          ▼                             ▼
+    Segment Parameters            Probability Rules
+          │                             │
+          └──────────────┬──────────────┘
+                         ▼
+                 Generate Attributes
+                         │
+        ┌────────────────┼────────────────┐
+        ▼                ▼                ▼
+      Normal          Log-Normal        Beta
+        │                │                │
+       Age             Income        Utilization
+        │
+        ├── Business Constraints
+        │
+        ▼
+  Employment Years
+        │
+        ▼
+  Credit History
+        │
+        ├── Categorical
+        │
+        ▼
+  Late Payments
+        │
+        ▼
+  Credit Mix
+        │
+        ├── Poisson
+        │
+        ▼
+ Recent Inquiries
+        │
+        ▼
+  Customer Record
+        │
+        ▼
+    DataFrame
+        │
+        ▼
+Credit Risk Analytics Pipeline
+```
+
+---
+
+# 25. Key Concepts Learned
+
+By studying and implementing this module, the following concepts are introduced:
+
+### Python
+
+* Functions
+* Type hints
+* Dictionaries
+* Lists
+* DataFrames
+* Modules
+* Imports
+
+### Object-Oriented Programming
+
+* Classes
+* Objects
+* Dataclasses
+* Encapsulation
+* Object attributes
+
+### Probability
+
+* Random variables
+* Probability distributions
+* Normal Distribution
+* Log-Normal Distribution
+* Beta Distribution
+* Categorical Distribution
+* Poisson Distribution
+
+### Data Generation
+
+* Synthetic data
+* Random number generation
+* Reproducibility
+* Segment-based simulation
+
+### Data Engineering
+
+* Data validation through business rules
+* Modular functions
+* DataFrame construction
+* Separation of responsibilities
+
+### Financial Analytics
+
+* Customer segmentation
+* Credit behavior
+* Credit utilization
+* Credit history
+* Payment behavior
+* Credit inquiries
+
+---
+
+# 26. Final Mental Model
+
+The most important way to understand the `customer_generator.py` module is:
+
+```text
+Customer Segment
+    ↓
+Defines the customer's general profile
+
+Probability Distribution
+    ↓
+Creates realistic variation
+
+Business Rule
+    ↓
+Prevents unrealistic combinations
+
+Individual Customer
+    ↓
+Receives a unique combination of attributes
+
+DataFrame
+    ↓
+Becomes the input for the credit risk pipeline
+```
+
+The generator does not try to predict whether a customer will default.
+
+It creates the population that later models will analyze.
+
+Therefore:
+
+> The Customer Generator creates the world.
+
+The next modules analyze that world.
+
+The complete project will eventually follow:
+
+```text
+WORLD
+Customer Generator
+        ↓
+MEASUREMENT
+Credit Score
+        ↓
+PREDICTION
+Probability of Default
+        ↓
+RISK
+Risk Classification
+        ↓
+DECISION
+Approval / Rejection / Manual Review
+        ↓
+LENDING
+Loan Amount
+```
+
+This separation is fundamental to the architecture of the Credit Risk Analytics Suite.
 
 ---

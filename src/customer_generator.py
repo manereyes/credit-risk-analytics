@@ -298,13 +298,13 @@ CREDIT_BUILDER = CustomerSegment(
 # A list of CustomerSegments with their own params to assign for each client further
 #
 
-DEFAULT_SEGMENTS = [
-    YOUNG_PROFESSIONAL,
-    ESTABLISHED_PROFESSIONAL,
-    SENIOR_PROFESSIONAL,
-    HIGH_INCOME,
-    CREDIT_BUILDER,
-]
+DEFAULT_SEGMENTS = {
+    "Young Professional": YOUNG_PROFESSIONAL,
+    "Established Professional": ESTABLISHED_PROFESSIONAL,
+    "Senior Professional": SENIOR_PROFESSIONAL,
+    "High Income": HIGH_INCOME,
+    "Credit Builder": CREDIT_BUILDER,
+}
 
 
 # =============================================================================
@@ -623,6 +623,232 @@ def generate_recent_inquiries(
     return int(inquiries)
 
 
-##########################################
-### generate_customers() is on the way ###
-##########################################
+def select_customer_segment(
+    segments: dict[str, CustomerSegment],
+    rng: np.random.Generator
+) -> CustomerSegment:
+    """
+    Select a customer segment based on segment probabilities.
+
+    Parameters
+    ----------
+    segments : dict[str, CustomerSegment]
+        Available customer segments.
+
+    rng : numpy.random.Generator
+        Random number generator.
+
+    Returns
+    -------
+    CustomerSegment
+        Selected customer segment.
+    """
+
+    # Takes the names of the segments and their probabilities to select a segment based on its probability
+    segment_names = list(segments.keys())
+
+    segment_probabilities = [
+        segment.weight
+        for segment in segments.values()
+    ]
+
+    # Chooses a segment name based on the probabilities of each segment
+    selected_segment_name = rng.choice(
+        segment_names,
+        p=segment_probabilities
+    )
+
+    # Returns a chosen segment
+    return segments[selected_segment_name]
+
+
+def generate_customer(
+    customer_id: str,
+    segments: dict[str, CustomerSegment],
+    rng: np.random.Generator
+) -> dict:
+    """
+    Generate a single synthetic customer.
+
+    Parameters
+    ----------
+    customer_id : str
+        Unique customer identifier.
+
+    segments : dict[str, CustomerSegment]
+        Available customer segments.
+
+    rng : numpy.random.Generator
+        Random number generator.
+
+    Returns
+    -------
+    dict
+        Synthetic customer record.
+    """
+
+    # ---------------------------------------------------------
+    # 1. Select customer segment
+    # ---------------------------------------------------------
+
+    segment = select_customer_segment(
+        segments=segments,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 2. Generate age
+    # ---------------------------------------------------------
+
+    age = generate_age(
+        segment=segment,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 3. Generate employment years
+    # ---------------------------------------------------------
+
+    employment_years = generate_employment_years(
+        age=age,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 4. Generate income
+    # ---------------------------------------------------------
+
+    annual_income = generate_income(
+        segment=segment,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 5. Generate late payments
+    # ---------------------------------------------------------
+
+    late_payments = generate_late_payments(
+        segment=segment,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 6. Generate credit utilization
+    # ---------------------------------------------------------
+
+    credit_utilization = generate_credit_utilization(
+        segment=segment,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 7. Generate credit history
+    # ---------------------------------------------------------
+
+    credit_history_years = generate_credit_history(
+        segment=segment,
+        age=age,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 8. Generate credit mix
+    # ---------------------------------------------------------
+
+    credit_mix = generate_credit_mix(
+        segment=segment,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 9. Generate recent inquiries
+    # ---------------------------------------------------------
+
+    recent_inquiries = generate_recent_inquiries(
+        segment=segment,
+        rng=rng
+    )
+
+    # ---------------------------------------------------------
+    # 10. Return customer record
+    # ---------------------------------------------------------
+
+    return {
+        "Customer_ID": customer_id,
+        "Segment": segment.name,
+        "Age": age,
+        "Employment_Years": employment_years,
+        "Annual_Income": annual_income,
+        "Late_Payments": late_payments,
+        "Credit_Utilization": credit_utilization,
+        "Credit_History_Years": credit_history_years,
+        "Credit_Mix": credit_mix,
+        "Recent_Inquiries": recent_inquiries
+    }
+
+
+# Orchestrator #
+def generate_customers(
+    n_customers: int = 1000,
+    random_state: int = 42,
+    segments: dict[str, CustomerSegment] | None = None
+) -> pd.DataFrame:
+    """
+    Generate a synthetic customer portfolio.
+
+    Parameters
+    ----------
+    n_customers : int, default=1000
+        Number of customers to generate.
+
+    random_state : int, default=42
+        Seed used to make the generated portfolio reproducible.
+
+    segments : dict[str, CustomerSegment] | None, default=None
+        Optional customer segment configuration.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Synthetic customer portfolio.
+    """
+
+    # ---------------------------------------------------------
+    # 1. Use default segments if none are provided
+    # ---------------------------------------------------------
+
+    if segments is None:
+        segments = DEFAULT_SEGMENTS
+
+    # ---------------------------------------------------------
+    # 2. Create random number generator
+    # ---------------------------------------------------------
+
+    rng = np.random.default_rng(random_state)
+
+    # ---------------------------------------------------------
+    # 3. Generate customer records
+    # ---------------------------------------------------------
+
+    customers = []
+
+    for i in range(1, n_customers + 1):
+
+        customer_id = f"C{i:05d}"
+
+        customer = generate_customer(
+            customer_id=customer_id,
+            segments=segments,
+            rng=rng
+        )
+
+        customers.append(customer)
+
+    # ---------------------------------------------------------
+    # 4. Convert records into DataFrame
+    # ---------------------------------------------------------
+
+    return pd.DataFrame(customers)
+
+
+###

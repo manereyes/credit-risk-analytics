@@ -15,7 +15,8 @@ dependencies = [
     "numpy",
     "pandas",
     "streamlit",
-    "plotly"
+    "plotly",
+    "scikit-learn"
 ]
 
 [tool.setuptools]
